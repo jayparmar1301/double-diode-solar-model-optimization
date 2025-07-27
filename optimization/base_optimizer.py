@@ -123,17 +123,12 @@ class BaseOptimizer(ABC):
     
     def check_convergence(self) -> bool:
         """
-        Check if algorithm has converged
+        SIMPLE FITNESS CONVERGENCE: Stop when fitness <= tolerance
         
         Returns:
-            True if converged, False otherwise
+            True if converged (fitness <= tolerance), False otherwise
         """
-        if len(self.convergence_history) < 10:
-            return False
-            
-        recent_values = self.convergence_history[-10:]
-        improvement = max(recent_values) - min(recent_values)
-        return improvement < self.tolerance
+        return self.best_fitness <= self.tolerance
     
     def get_results(self) -> Dict[str, Any]:
         """

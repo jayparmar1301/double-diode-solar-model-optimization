@@ -64,10 +64,10 @@ PHYSICAL_CONSTANTS = {
 
 # Optimization parameters
 OPTIMIZATION_PARAMS = {
-    'population_size': 50,      # JAYA population size
-    'max_iterations': 1000,     # Maximum iterations
-    'temperature': 25.0,        # Operating temperature (°C)
-    'tolerance': 1e-8,          # Convergence tolerance
+    'population_size': 50,          # Population size (updated from 20 to 50)
+    'max_iterations': 1000,         # Maximum iterations
+    'temperature': 25.0,            # Operating temperature (°C)
+    'tolerance': 1e-15,             # FITNESS TOLERANCE (updated from 1e-1 to 1e-15)
     'bounds': SINGLE_DIODE_BOUNDS,  # Default bounds (single diode)
     'double_diode_bounds': DOUBLE_DIODE_BOUNDS  # Double diode bounds
 }

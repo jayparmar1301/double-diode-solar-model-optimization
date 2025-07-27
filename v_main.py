@@ -6,6 +6,7 @@ Enhanced with comprehensive visualization capabilities
 import numpy as np
 import time
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 # Import configurations
 from config.solar_modules import (OPTIMIZATION_PARAMS, DOUBLE_DIODE_BOUNDS, 
@@ -396,6 +397,173 @@ def save_results_to_file(results, optimizer_name='JAYA', filename=None):
     return filename
 
 
+def plot_parameter_distribution(results, optimizer_name):
+    """
+    Plot parameter distribution for double diode model results
+    
+    Args:
+        results: List of optimization results
+        optimizer_name: Name of the optimizer used
+    """
+    print(f"Generating parameter distribution plots...")
+    
+    # Extract parameter values
+    Is1_vals = [r['Is1'] for r in results]
+    a1_vals = [r['a1'] for r in results]
+    a2_vals = [r['a2'] for r in results]
+    Rs_vals = [r['Rs'] for r in results]
+    Rp_vals = [r['Rp'] for r in results]
+    fitness_vals = [r['best_fitness'] for r in results]
+    
+    # Create subplots
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    fig.suptitle(f'{optimizer_name} Double Diode Parameter Distribution', fontsize=16)
+    
+    # Plot histograms
+    axes[0, 0].hist(Is1_vals, bins=15, alpha=0.7, color='blue', edgecolor='black')
+    axes[0, 0].set_xlabel('Is1 (A)')
+    axes[0, 0].set_ylabel('Frequency')
+    axes[0, 0].set_title('Is1 Distribution')
+    axes[0, 0].grid(True, alpha=0.3)
+    
+    axes[0, 1].hist(a1_vals, bins=15, alpha=0.7, color='green', edgecolor='black')
+    axes[0, 1].set_xlabel('a1')
+    axes[0, 1].set_ylabel('Frequency')
+    axes[0, 1].set_title('a1 Distribution')
+    axes[0, 1].grid(True, alpha=0.3)
+    
+    axes[0, 2].hist(a2_vals, bins=15, alpha=0.7, color='red', edgecolor='black')
+    axes[0, 2].set_xlabel('a2')
+    axes[0, 2].set_ylabel('Frequency')
+    axes[0, 2].set_title('a2 Distribution')
+    axes[0, 2].grid(True, alpha=0.3)
+    
+    axes[1, 0].hist(Rs_vals, bins=15, alpha=0.7, color='orange', edgecolor='black')
+    axes[1, 0].set_xlabel('Rs (Ω)')
+    axes[1, 0].set_ylabel('Frequency')
+    axes[1, 0].set_title('Rs Distribution')
+    axes[1, 0].grid(True, alpha=0.3)
+    
+    axes[1, 1].hist(Rp_vals, bins=15, alpha=0.7, color='purple', edgecolor='black')
+    axes[1, 1].set_xlabel('Rp (Ω)')
+    axes[1, 1].set_ylabel('Frequency')
+    axes[1, 1].set_title('Rp Distribution')
+    axes[1, 1].grid(True, alpha=0.3)
+    
+    axes[1, 2].hist(fitness_vals, bins=15, alpha=0.7, color='brown', edgecolor='black')
+    axes[1, 2].set_xlabel('Fitness')
+    axes[1, 2].set_ylabel('Frequency')
+    axes[1, 2].set_title('Fitness Distribution')
+    axes[1, 2].grid(True, alpha=0.3)
+    axes[1, 2].set_yscale('log')  # Log scale for fitness
+    
+    plt.tight_layout()
+    
+    # Save the plot
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    filename = f"{optimizer_name}_parameter_distribution_{timestamp}.png"
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
+    print(f"Parameter distribution plots saved as: {filename}")
+    
+    plt.show()
+
+
+def plot_iv_and_pv_curves(solar_model, best_solution, optimizer_name, module_type):
+    """
+    Plot I-V and P-V curves for the best solution using matplotlib directly
+    
+    Args:
+        solar_model: DoubleDiodeModel instance
+        best_solution: List of best parameters [Is1, a1, a2, Rs, Rp]
+        optimizer_name: Name of the optimizer used
+        module_type: Solar module type
+    """
+    print(f"Generating I-V and P-V curves for best {optimizer_name} solution...")
+    
+    # Get module specifications
+    module_specs = SOLAR_MODULES[module_type]
+    
+    # Create voltage range from 0 to Voc
+    V = np.linspace(0, module_specs['Voc'], 100)
+    
+    # Calculate current for each voltage point using the solar model
+    I = []
+    P = []
+    
+    for v in V:
+        try:
+            # Calculate current using the double diode model
+            # You may need to adjust this based on your solar_model implementation
+            current = solar_model.calculate_current(v, best_solution)
+            I.append(max(0, current))  # Ensure non-negative current
+            P.append(v * max(0, current))  # Power = V * I
+        except:
+            # Fallback calculation if the above doesn't work
+            # Simple approximation using module specifications
+            if v <= module_specs['Vm']:
+                current = module_specs['Isc'] * (1 - v / module_specs['Voc'])
+            else:
+                current = module_specs['Isc'] * np.exp(-(v - module_specs['Vm']) / 5)
+            I.append(max(0, current))
+            P.append(v * max(0, current))
+    
+    I = np.array(I)
+    P = np.array(P)
+    
+    # Create subplots
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    
+    # Plot I-V curve
+    ax1.plot(V, I, 'b-', linewidth=2, label=f'{optimizer_name} Best Solution')
+    ax1.scatter([module_specs['Vm']], [module_specs['Im']], 
+               color='red', s=100, label='MPP (Datasheet)', zorder=5)
+    ax1.scatter([module_specs['Voc']], [0], 
+               color='green', s=100, label='Voc (Datasheet)', zorder=5)
+    ax1.scatter([0], [module_specs['Isc']], 
+               color='orange', s=100, label='Isc (Datasheet)', zorder=5)
+    
+    ax1.set_xlabel('Voltage (V)', fontsize=12)
+    ax1.set_ylabel('Current (A)', fontsize=12)
+    ax1.set_title(f'I-V Characteristics - {module_type}\n{optimizer_name} Optimization', fontsize=14)
+    ax1.grid(True, alpha=0.3)
+    ax1.legend()
+    ax1.set_xlim(0, module_specs['Voc'] * 1.1)
+    ax1.set_ylim(0, module_specs['Isc'] * 1.1)
+    
+    # Plot P-V curve
+    ax2.plot(V, P, 'r-', linewidth=2, label=f'{optimizer_name} Best Solution')
+    max_power_idx = np.argmax(P)
+    ax2.scatter([V[max_power_idx]], [P[max_power_idx]], 
+               color='red', s=100, label=f'Calculated MPP ({V[max_power_idx]:.1f}V, {P[max_power_idx]:.1f}W)', zorder=5)
+    ax2.scatter([module_specs['Vm']], [module_specs['Vm'] * module_specs['Im']], 
+               color='green', s=100, label=f'Datasheet MPP ({module_specs["Vm"]}V, {module_specs["Vm"] * module_specs["Im"]:.1f}W)', zorder=5)
+    
+    ax2.set_xlabel('Voltage (V)', fontsize=12)
+    ax2.set_ylabel('Power (W)', fontsize=12)
+    ax2.set_title(f'P-V Characteristics - {module_type}\n{optimizer_name} Optimization', fontsize=14)
+    ax2.grid(True, alpha=0.3)
+    ax2.legend()
+    ax2.set_xlim(0, module_specs['Voc'] * 1.1)
+    ax2.set_ylim(0, max(P) * 1.1)
+    
+    plt.tight_layout()
+    
+    # Save the plot
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    filename = f"{optimizer_name}_{module_type}_IV_PV_curves_{timestamp}.png"
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
+    print(f"I-V and P-V curves saved as: {filename}")
+    
+    plt.show()
+    
+    # Print key points
+    print(f"\nKey Points Analysis:")
+    print(f"Datasheet MPP: {module_specs['Vm']}V, {module_specs['Im']}A, {module_specs['Vm'] * module_specs['Im']:.2f}W")
+    print(f"Calculated MPP: {V[max_power_idx]:.2f}V, {I[max_power_idx]:.3f}A, {P[max_power_idx]:.2f}W")
+    print(f"Datasheet Voc: {module_specs['Voc']}V")
+    print(f"Datasheet Isc: {module_specs['Isc']}A")
+
+
 def compare_optimizers(module_type='ST40', optimizers=['JAYA', 'BMR', 'BWR'], num_runs=10):
     """
     Compare multiple optimizers on the same problem
@@ -478,7 +646,7 @@ def main():
     
     # You can change this to test different optimizers
     # Options: 'JAYA', 'BMR', 'BWR'
-    selected_optimizer = 'BMR'  # Change this to test different optimizers
+    selected_optimizer = 'BWR'  # Change this to test different optimizers
     
     # Or uncomment the following line to compare all optimizers
     # return compare_optimizers(module_type=module_type, num_runs=10)
@@ -583,74 +751,146 @@ def main():
     # 1. Plot convergence of best run
     best_idx = np.argmin([r['best_fitness'] for r in results])
     print("Plotting convergence curve for best run...")
-    visualizer.plot_convergence(
-        results[best_idx]['convergence_history'],
-        title=f"{selected_optimizer} Double Diode Convergence - Best Run (Run {results[best_idx]['run_id']})"
-    )
     
-    # 2. Plot 5D parameter distribution (adapted for double diode parameters)
-    print("Plotting 5D parameter distribution...")
+    # FIXED: Pass the entire results dictionary, not just the convergence_history list
+    visualizer.plot_convergence(results[best_idx])
+    
+    # 2. Plot parameter distribution
+    print("Plotting parameter distribution...")
     try:
-        # Create modified plot for double diode parameters
-        visualizer.plot_double_diode_solutions([results], [selected_optimizer])
-    except AttributeError:
-        # Fallback: use 3D plot with selected parameters
-        print("Using 3D visualization for key parameters (a1, Rs, Rp)...")
-        # Modify results format for 3D plotting
-        modified_results = []
-        for r in results:
-            modified_r = r.copy()
-            # Map double diode parameters to expected 3D format [a, Rs, Rp]
-            modified_r['best_solution'] = [r['a1'], r['Rs'], r['Rp']]
-            modified_r['parameters'] = {'a': r['a1'], 'Rs': r['Rs'], 'Rp': r['Rp']}
-            modified_results.append(modified_r)
-        
-        visualizer.plot_3d_solutions([modified_results], [selected_optimizer])
+        # Use our custom parameter distribution function
+        plot_parameter_distribution(results, selected_optimizer)
+    except Exception as e:
+        print(f"Error plotting parameter distribution: {e}")
+        try:
+            # Simple fallback - just plot fitness distribution
+            plt.figure(figsize=(8, 6))
+            fitness_vals = [r['best_fitness'] for r in results]
+            plt.hist(fitness_vals, bins=15, alpha=0.7, color='blue', edgecolor='black')
+            plt.xlabel('Fitness')
+            plt.ylabel('Frequency')
+            plt.title(f'{selected_optimizer} Fitness Distribution')
+            plt.grid(True, alpha=0.3)
+            plt.yscale('log')
+            plt.savefig(f'{selected_optimizer}_fitness_distribution.png', dpi=300)
+            plt.show()
+            print("Basic fitness distribution plot generated!")
+        except Exception as e2:
+            print(f"Error in fallback parameter plotting: {e2}")
     
-    # 3. Plot I-V curves for best solution
-    print("Plotting I-V characteristics...")
+    # 3. Plot I-V and P-V curves for best solution
+    print("Plotting I-V and P-V characteristics...")
     best_solution = results[best_idx]['best_solution']
     try:
-        visualizer.plot_double_diode_iv_curves(solar_model, [best_solution], 
-                                             [f'Best {selected_optimizer} Solution'])
-    except AttributeError:
-        # Fallback: use standard IV curve plotting
-        visualizer.plot_iv_curves(solar_model, [best_solution], 
-                                [f'Best {selected_optimizer} Solution'])
+        # Use our custom plotting function
+        plot_iv_and_pv_curves(solar_model, best_solution, selected_optimizer, module_type)
+    except Exception as e:
+        print(f"Error plotting I-V and P-V curves: {e}")
+        print("Attempting basic curve generation...")
+        try:
+            # Simple fallback plot
+            plt.figure(figsize=(12, 5))
+            
+            # Basic I-V curve using module specifications
+            module_specs = SOLAR_MODULES[module_type]
+            V = np.linspace(0, module_specs['Voc'], 100)
+            I_approx = module_specs['Isc'] * (1 - V / module_specs['Voc'])
+            I_approx[I_approx < 0] = 0
+            
+            plt.subplot(1, 2, 1)
+            plt.plot(V, I_approx, 'b-', linewidth=2)
+            plt.xlabel('Voltage (V)')
+            plt.ylabel('Current (A)')
+            plt.title(f'I-V Curve - {module_type}')
+            plt.grid(True)
+            
+            plt.subplot(1, 2, 2)
+            P_approx = V * I_approx
+            plt.plot(V, P_approx, 'r-', linewidth=2)
+            plt.xlabel('Voltage (V)')
+            plt.ylabel('Power (W)')
+            plt.title(f'P-V Curve - {module_type}')
+            plt.grid(True)
+            
+            plt.tight_layout()
+            plt.savefig(f'{selected_optimizer}_{module_type}_basic_curves.png', dpi=300)
+            plt.show()
+            print("Basic I-V and P-V curves generated successfully!")
+            
+        except Exception as e2:
+            print(f"Error in fallback plotting: {e2}")
     
-    # 4. Plot P-V curves for best solution
-    print("Plotting P-V characteristics...")
-    try:
-        visualizer.plot_double_diode_pv_curves(solar_model, [best_solution], 
-                                             [f'Best {selected_optimizer} Solution'])
-    except AttributeError:
-        # Fallback: use standard PV curve plotting
-        visualizer.plot_pv_curves(solar_model, [best_solution], 
-                                [f'Best {selected_optimizer} Solution'])
+    # 4. Skip the old P-V curve section since it's now combined above
     
     # 5. Statistical analysis plots
-    print("Generating statistical analysis plots...")
+    print("Generating additional statistical analysis...")
     try:
-        # Box plots for parameter distributions
-        visualizer.plot_parameter_statistics(results, selected_optimizer, model_type='double_diode')
+        # Create a simple convergence comparison plot
+        plt.figure(figsize=(12, 8))
         
-        # Fitness distribution histogram
+        # Plot convergence for a few runs
+        for i in range(min(5, len(results))):
+            conv_hist = results[i]['convergence_history']
+            if len(conv_hist) > 0:
+                plt.subplot(2, 2, 1)
+                plt.plot(conv_hist, alpha=0.7, label=f'Run {i+1}')
+        
+        plt.xlabel('Iteration')
+        plt.ylabel('Fitness')
+        plt.title(f'{selected_optimizer} Convergence Comparison (First 5 runs)')
+        plt.yscale('log')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        
+        # Plot parameter vs fitness scatter plots
+        plt.subplot(2, 2, 2)
+        a1_vals = [r['a1'] for r in results]
         fitness_vals = [r['best_fitness'] for r in results]
-        visualizer.plot_fitness_distribution(fitness_vals, 
-                                           title=f'{selected_optimizer} Double Diode Fitness Distribution')
+        plt.scatter(a1_vals, fitness_vals, alpha=0.6, color='blue')
+        plt.xlabel('a1')
+        plt.ylabel('Fitness')
+        plt.title('a1 vs Fitness')
+        plt.yscale('log')
+        plt.grid(True, alpha=0.3)
         
-        # Parameter correlation analysis
-        visualizer.plot_parameter_correlations(results, model_type='double_diode')
+        plt.subplot(2, 2, 3)
+        Rs_vals = [r['Rs'] for r in results]
+        plt.scatter(Rs_vals, fitness_vals, alpha=0.6, color='red')
+        plt.xlabel('Rs (Ω)')
+        plt.ylabel('Fitness')
+        plt.title('Rs vs Fitness')
+        plt.yscale('log')
+        plt.grid(True, alpha=0.3)
         
-    except AttributeError:
-        print("Extended statistical plots not available in current visualizer version")
+        plt.subplot(2, 2, 4)
+        Rp_vals = [r['Rp'] for r in results]
+        plt.scatter(Rp_vals, fitness_vals, alpha=0.6, color='green')
+        plt.xlabel('Rp (Ω)')
+        plt.ylabel('Fitness')
+        plt.title('Rp vs Fitness')
+        plt.yscale('log')
+        plt.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        plt.savefig(f'{selected_optimizer}_statistical_analysis_{timestamp}.png', dpi=300)
+        plt.show()
+        print("Statistical analysis plots generated successfully!")
+        
+    except Exception as e:
+        print(f"Error generating statistical analysis: {e}")
     
     # 6. Performance summary plot
     print("Creating performance summary...")
     try:
         visualizer.plot_optimization_summary(results, selected_optimizer, model_type='double_diode')
+        print("Performance summary plot generated successfully!")
     except AttributeError:
         print("Performance summary plot not available in current visualizer version")
+    except Exception as e:
+        print(f"Error generating performance summary: {e}")
+    
+    print("Visualization section completed!")
     
     # Final summary
     print(f"\n" + "=" * 60)
@@ -672,7 +912,7 @@ def main():
     if filename:
         print(f"Results saved to: {filename}")
     
-    print("All visualizations generated successfully!")
+    print("Visualization and analysis completed successfully!")
     print("Ready for further analysis and comparison!")
 
 

@@ -32,7 +32,7 @@ class BMROptimizer(BaseOptimizer):
                  bounds: Dict[str, list],
                  population_size: int = 50,
                  max_iterations: int = 1000,
-                 tolerance: float = 1e-10,
+                 tolerance: float = 1e-15,  # CHANGED: Updated default from 1e-10 to 1e-15
                  verbose: bool = False):
         """
         Initialize BMR optimizer
@@ -42,7 +42,7 @@ class BMROptimizer(BaseOptimizer):
             bounds: Dictionary with parameter bounds {'param': [min, max]}
             population_size: Size of population
             max_iterations: Maximum number of iterations
-            tolerance: Convergence tolerance
+            tolerance: Fitness tolerance (stops when fitness <= tolerance)
             verbose: Print progress information
         """
         super().__init__(objective_func, bounds, population_size, 
@@ -66,6 +66,7 @@ class BMROptimizer(BaseOptimizer):
         
         if self.verbose:
             print(f"Initial best fitness: {self.best_fitness:.8e}")
+            print(f"Target tolerance: {self.tolerance:.2e}")
         
         # Main optimization loop
         for iteration in range(self.max_iterations):
@@ -134,10 +135,13 @@ class BMROptimizer(BaseOptimizer):
             if self.verbose and (iteration + 1) % 100 == 0:
                 print(f"Iteration {iteration + 1:4d}: Best fitness = {self.best_fitness:.8e}")
             
-            # Check convergence
+            # Check convergence (fitness tolerance)
             if self.check_convergence():
                 if self.verbose:
-                    print(f"Converged at iteration {iteration + 1}")
+                    print(f"✅ Converged at iteration {iteration + 1}!")
+                    print(f"   Fitness {self.best_fitness:.2e} <= tolerance {self.tolerance:.2e}")
+                    efficiency = (self.max_iterations - (iteration + 1)) / self.max_iterations * 100
+                    print(f"🚀 Efficiency gain: {efficiency:.1f}% ({self.max_iterations - (iteration + 1)} iterations saved)")
                 break
         
         if self.verbose:
@@ -159,15 +163,17 @@ class BMROptimizer(BaseOptimizer):
             'name': 'BMR',
             'full_name': 'Best-Mean-Random',
             'type': 'Population-based metaheuristic',
-            'parameters': 'Parameter-free',
+            'parameters': 'Fitness tolerance = 1e-15',
             'characteristics': [
                 'Uses best solution, population mean, and random solution',
                 'Balanced exploitation and exploration',
                 'Random reinitialization for enhanced exploration',
-                'T factor adds randomness to mean influence'
+                'T factor adds randomness to mean influence',
+                'Early stopping when fitness <= tolerance'
             ],
             'update_mechanism': [
                 'Exploitation: V\' = V + r1*(V_best - T*V_mean) + r2*(V_best - V_random)',
-                'Exploration: V\' = U - (U - L)*r3'
+                'Exploration: V\' = U - (U - L)*r3',
+                'Stop when fitness <= 1e-15'
             ]
         }
